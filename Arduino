@@ -1,0 +1,99 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <Servo.h>
+
+Servo escLeft;
+Servo escRight;
+
+ESP8266WebServer server(80);
+
+// Replace with your WiFi credentials
+const char* ssid = "YOUR_SSID";
+const char* password = "YOUR_PASSWORD";
+
+// Creating the web page
+const char MAIN_page[] PROGMEM = R"=====(
+<!DOCTYPE html>
+<html>
+<body style="font-family:Arial; text-align:center;">
+
+<h2>BLDC Motor Control</h2>
+
+<!-- Left Motor -->
+<p>Left Motor</p>
+<input type="range" min="1000" max="2000" value="1000" id="left"
+oninput="send('left', this.value)">
+<br><br>
+
+<!-- Right Motor -->
+<p>Right Motor</p>
+<input type="range" min="1000" max="2000" value="1000" id="right"
+oninput="send('right', this.value)">
+<br><br>
+
+<script>
+function send(motor, val) {
+  var xhttp = new XMLHttpRequest();
+  xhttp.open("GET", "/set?motor=" + motor + "&value=" + val, true);
+  xhttp.send();
+}
+</script>
+
+</body>
+</html>
+)=====";
+
+// Handle root page
+void handleRoot() {
+  server.send(200, "text/html", MAIN_page);
+}
+
+// Handle motor control
+void handleSet() {
+  String motor = server.arg("motor");
+  int value = server.arg("value").toInt();
+
+  if (motor == "left") {
+    escLeft.writeMicroseconds(value);
+  } else if (motor == "right") {
+    escRight.writeMicroseconds(value);
+  }
+
+  server.send(200, "text/plain", "OK");
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  // Attach ESCs (change pins as needed)
+  escLeft.attach(D5);
+  escRight.attach(D6);
+
+  // Initialize ESCs (important!)
+  escLeft.writeMicroseconds(1000);
+  escRight.writeMicroseconds(1000);
+  delay(3000);
+
+  // Connect to WiFi
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting");
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nConnected!");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  // Routes
+  server.on("/", handleRoot);
+  server.on("/set", handleSet);
+
+  server.begin();
+}
+
+void loop() {
+  server.handleClient();
+}
